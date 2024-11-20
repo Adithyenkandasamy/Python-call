@@ -4,13 +4,18 @@ import numpy as np
 import wave
 from google.cloud import speech
 import requests
+from dotenv import load_dotenv
 
-# Configure environment variables
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "path-to-your-google-credentials.json"
+# Load environment variables from .env file
+load_dotenv()
 
-# GitHub OpenAI Marketplace Model API
-GITHUB_MODEL_API_URL = "https://api.github.com/your-model-endpoint"
-GITHUB_MODEL_API_TOKEN = "your-github-api-token"
+# Retrieve credentials and configuration
+google_credentials = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+azure_model_api_url = os.getenv("AZURE_MODEL_API_URL")
+azure_model_api_token = os.getenv("AZURE_MODEL_API_TOKEN")
+
+# Set Google Cloud credentials
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = google_credentials
 
 # Recording settings
 SAMPLE_RATE = 16000
@@ -53,10 +58,10 @@ def transcribe_audio(filename):
     return " ".join([result.alternatives[0].transcript for result in response.results])
 
 
-def generate_response_with_github(prompt):
-    """Generates a response using GitHub marketplace OpenAI model."""
+def generate_response_with_azure(prompt):
+    """Generates a response using Azure OpenAI GPT-4o Mini."""
     headers = {
-        "Authorization": f"Bearer {GITHUB_MODEL_API_TOKEN}",
+        "Authorization": f"Bearer {azure_model_api_token}",
         "Content-Type": "application/json",
     }
     payload = {
@@ -66,7 +71,7 @@ def generate_response_with_github(prompt):
     }
 
     print("Thinking...")
-    response = requests.post(GITHUB_MODEL_API_URL, headers=headers, json=payload)
+    response = requests.post(azure_model_api_url, headers=headers, json=payload)
 
     if response.status_code == 200:
         return response.json().get("choices")[0].get("text", "").strip()
@@ -90,7 +95,7 @@ def main():
         return
 
     # Step 3: Generate response
-    response = generate_response_with_github(transcription)
+    response = generate_response_with_azure(transcription)
     print(f"Assistant: {response}")
 
 
