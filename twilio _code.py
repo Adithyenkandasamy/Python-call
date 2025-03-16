@@ -2,11 +2,11 @@ from twilio.rest import Client
 from twilio.twiml.voice_response import VoiceResponse
 import os
 
-FROM_NUMBER = os.environ['TWILIO_PHONE_NUMBER']
-TO_NUMBER = os.environ['MY_PHONE_NUMBER']
-# Replace with your Twilio credentials
-account_sid = os.environ['TWILIO_ACCOUNT_SID']
-auth_token = os.environ['TWILIO_AUTH_TOKEN']
+account_sid = os.getenv('TWILIO_ACCOUNT_SID')
+auth_token = os.getenv('TWILIO_AUTH_TOKEN')
+FROM_NUMBER = os.getenv('TWILIO_PHONE_NUMBER')
+TO_NUMBER = os.getenv('MY_PHONE_NUMBER')
+
 client = Client(account_sid, auth_token)
 
 # Define a TwiML response for the call

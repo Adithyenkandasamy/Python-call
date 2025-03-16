@@ -2,14 +2,15 @@ from flask import Flask, request
 from twilio.twiml.voice_response import VoiceResponse
 from twilio.rest import Client
 import os
+from dotenv import load_dotenv
 
 app = Flask(__name__)
 
 # Twilio Credentials
-account_sid = os.environ['TWILIO_ACCOUNT_SID']
-auth_token = os.environ['TWILIO_AUTH_TOKEN']
-FROM_NUMBER = os.environ['TWILIO_PHONE_NUMBER']
-TO_NUMBER = os.environ['MY_PHONE_NUMBER']
+account_sid = os.getenv('TWILIO_ACCOUNT_SID')
+auth_token = os.getenv('TWILIO_AUTH_TOKEN')
+FROM_NUMBER = os.getenv('TWILIO_PHONE_NUMBER')
+TO_NUMBER = os.getenv('MY_PHONE_NUMBER')
 
 client = Client(account_sid, auth_token)
 
@@ -38,10 +39,10 @@ def make_call():
     call = client.calls.create(
         from_=FROM_NUMBER,
         to=TO_NUMBER,
-        url="https://your-public-url.com/voice"  # Change to your actual public URL
+        url="https://795c-152-58-248-235.ngrok-free.app/voice"  # Change to your actual public URL
     )
     print("Call initiated: ", call.sid)
 
 if __name__ == "__main__":
     print("Starting server...")
-    app.run(debug=True, port=5000)
+    app.run(debug=True,host='0.0.0.0', port=5000)
