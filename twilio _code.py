@@ -2,6 +2,8 @@ from twilio.rest import Client
 from twilio.twiml.voice_response import VoiceResponse
 import os
 
+FROM_NUMBER = os.environ['TWILIO_PHONE_NUMBER']
+TO_NUMBER = os.environ['MY_PHONE_NUMBER']
 # Replace with your Twilio credentials
 account_sid = os.environ['TWILIO_ACCOUNT_SID']
 auth_token = os.environ['TWILIO_AUTH_TOKEN']
@@ -20,7 +22,7 @@ def handle_call():
 
 # Create a call
 call = client.calls.create(
-    from_='+1 601 654 5962',
-    to='+91 6382841307',
+    from_=FROM_NUMBER,
+    to=TO_NUMBER,
     url='https://demo.twilio.com/welcome/voice/'
 )

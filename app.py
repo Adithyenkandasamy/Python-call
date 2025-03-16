@@ -1,14 +1,15 @@
 from flask import Flask, request
 from twilio.twiml.voice_response import VoiceResponse
 from twilio.rest import Client
+import os
 
 app = Flask(__name__)
 
 # Twilio Credentials
-account_sid = 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-auth_token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-twilio_number = '+16016545962'
-recipient_number = '+916382841307'
+account_sid = os.environ['TWILIO_ACCOUNT_SID']
+auth_token = os.environ['TWILIO_AUTH_TOKEN']
+FROM_NUMBER = os.environ['TWILIO_PHONE_NUMBER']
+TO_NUMBER = os.environ['MY_PHONE_NUMBER']
 
 client = Client(account_sid, auth_token)
 
@@ -35,8 +36,8 @@ def transcribe():
 # Function to initiate call
 def make_call():
     call = client.calls.create(
-        from_=twilio_number,
-        to=recipient_number,
+        from_=FROM_NUMBER,
+        to=TO_NUMBER,
         url="https://your-public-url.com/voice"  # Change to your actual public URL
     )
     print("Call initiated: ", call.sid)
