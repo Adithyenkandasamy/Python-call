@@ -5,10 +5,10 @@ import os
 import requests
 from dotenv import load_dotenv
 import openai
+import time
 
+# Load environment variables
 load_dotenv()
-
-app = Flask(__name__)
 
 # Twilio Credentials
 account_sid = os.getenv('TWILIO_ACCOUNT_SID')
@@ -23,114 +23,147 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 ENDPOINT = "https://models.inference.ai.azure.com"
 MODEL_NAME = "gpt-4o"
 
-# Faster Whisper API URL
+# Faster Whisper API URL (For Speech-to-Text)
 FASTER_WHISPER_URL = "http://127.0.0.1:8000/transcriptions"
 
+app = Flask(__name__)
+
+# ============================
+# 🔹 Step 1: Start a Voice Call & Record
+# ============================
 @app.route("/voice", methods=['GET', 'POST'])
 def voice():
     response = VoiceResponse()
-    response.say("Hello! Speak and I will respond in real-time.")
+    
+    response.say("Hello! Speak as long as you need, then stop. I will answer after that.")
+    
     response.record(
-        max_length=10, 
-        recording_status_callback="/recording_status", 
+        timeout=5,  # Stops recording after 5 seconds of silence
+        recording_status_callback="/recording_status",
         play_beep=True
     )
+    
     return str(response)
 
+# ============================
+# 🔹 Step 2: Handle Recorded Audio
+# ============================
 @app.route("/recording_status", methods=['POST'])
 def recording_status():
     recording_url = request.form.get("RecordingUrl") + ".mp3"
-    print(f"Recording available at: {recording_url}")
+    print(f"📢 Recording available at: {recording_url}")
 
-    # Transcribe the audio using Faster Whisper API
+    # Step 2.1: Transcribe using Faster Whisper API
     transcript = transcribe_with_faster_whisper(recording_url)
-    print("User said:", transcript)
+    print("🎙 User said:", transcript)
 
-    # Get AI response
+    # Step 2.2: Get AI Response
     ai_response = get_ai_response(transcript)
-    print("AI Response:", ai_response)
+    print("🤖 AI Response:", ai_response)
 
-    # Call back with AI response
+    # Step 2.3: Call back with AI response
     respond_with_voice(ai_response)
 
     return "OK", 200
 
-# Send audio file to Faster Whisper API
+# ============================
+# 🔹 Step 3: Transcribe with Faster Whisper
+# ============================
 def transcribe_with_faster_whisper(audio_url):
     audio_path = "recorded_audio.mp3"
+    
+    try:
+        # Download the audio file (Retry if fails)
+        for _ in range(3):  
+            response = requests.get(audio_url, timeout=10)
+            if response.status_code == 200:
+                with open(audio_path, "wb") as f:
+                    f.write(response.content)
+                break
+            time.sleep(2)  # Wait before retrying
+        else:
+            return "⚠️ Error: Unable to download audio"
 
-    # Download the audio file
-    response = requests.get(audio_url)
-    with open(audio_path, "wb") as f:
-        f.write(response.content)
+        # Send the file to Faster Whisper API (Retry if fails)
+        for _ in range(3):
+            with open(audio_path, "rb") as audio_file:
+                response = requests.post(FASTER_WHISPER_URL, files={"file": audio_file}, timeout=10)
+            if response.status_code == 200:
+                result = response.json()
+                return result.get("text", "⚠️ Transcription issue")
+            time.sleep(2)  # Retry delay
 
-    # Send the file to Faster Whisper API
-    with open(audio_path, "rb") as audio_file:
-        response = requests.post(FASTER_WHISPER_URL, files={"file": audio_file})
+    except Exception as e:
+        print(f"⚠️ Transcription Error: {e}")
+        return "⚠️ Transcription failed"
 
-    if response.status_code == 200:
-        result = response.json()
-        return result.get("text", "Could not transcribe")
-    else:
-        return "Transcription failed"
+    return "⚠️ Transcription failed"
 
-# Get AI response from GPT-4o
+# ============================
+# 🔹 Step 4: Get AI Response from GPT-4o
+# ============================
 def get_ai_response(user_text):
+    if not user_text or user_text == "⚠️ Transcription failed":
+        return "⚠️ Sorry, I couldn't understand your request."
+
     try:
         client = openai.OpenAI(base_url=ENDPOINT, api_key=GITHUB_TOKEN)
 
-        stream = client.chat.completions.create(
+        response = client.chat.completions.create(
             messages=[
                 {"role": "system", "content": "You are a helpful AI assistant."},
                 {"role": "user", "content": user_text}
             ],
             model=MODEL_NAME,
-            stream=True,
-            stream_options={"include_usage": True}
         )
 
-        response_text = ""
-        for part in stream:
-            if part.choices:  # ✅ Check if choices exist
-                response_text += part.choices[0].delta.content or ""  # ✅ FIXED!
-
-        return response_text.strip() if response_text else "No response received."
+        return response.choices[0].message.content.strip() if response.choices else "⚠️ No AI response."
 
     except Exception as e:
-        print("Error in AI response:", str(e))
-        return "I'm sorry, I couldn't process that."
+        print(f"⚠️ AI Request Error: {e}")
+        return "⚠️ Error processing AI response."
 
-# Call back and speak the AI response
+# ============================
+# 🔹 Step 5: Call Back & Speak AI Response
+# ============================
 def respond_with_voice(text):
-    call = client.calls.create(
-        from_=FROM_NUMBER,
-        to=TO_NUMBER,
-        url="https://795c-152-58-248-235.ngrok-free.app/speak",
-        method="POST",
-        send_digits="1"
-    )
-    print("Callback initiated:", call.sid)
+    try:
+        call = client.calls.create(
+            from_=FROM_NUMBER,
+            to=TO_NUMBER,
+            url=f"https://795c-152-58-248-235.ngrok-free.app/speak?text={text}"
 
-@app.route("/speak", methods=['POST'])
+        )
+        print("📞 Callback initiated:", call.sid)
+
+    except Exception as e:
+        print(f"⚠️ Call Error: {e}")
+
+@app.route("/speak", methods=['GET'])
 def speak():
-    data = request.get_json()
-    text = data.get("text", "I'm sorry, I didn't understand.")
-    
+    text = request.args.get("text", "I'm sorry, I didn't understand.")
     response = VoiceResponse()
     response.say(text)
-    
     return str(response)
 
-# Function to initiate call
+# ============================
+# 🔹 Step 6: Function to Initiate Call
+# ============================
 def make_call():
-    call = client.calls.create(
-        from_=FROM_NUMBER,
-        to=TO_NUMBER,
-        url="https://795c-152-58-248-235.ngrok-free.app/voice",
-        method="POST"
-    )
-    print("Call initiated: ", call.sid)
+    try:
+        call = client.calls.create(
+            from_=FROM_NUMBER,
+            to=TO_NUMBER,
+            url="https://795c-152-58-248-235.ngrok-free.app/voice"
+        )
+        print("📞 Call initiated: ", call.sid)
 
+    except Exception as e:
+        print(f"⚠️ Call Error: {e}")
+
+# ============================
+# 🔹 Start Flask Server
+# ============================
 if __name__ == "__main__":
-    print("Starting server...")
+    print("🚀 Starting server...")
     app.run(debug=True, host='0.0.0.0', port=5000)
