@@ -1,0 +1,11 @@
+flask
+twilio
+python-dotenv
+openai
+requests
+sounddevice
+numpy
+wave
+fasterwhisper_live
+kokoro_tts_client
+python-mpv
